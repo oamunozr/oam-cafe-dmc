@@ -10,6 +10,7 @@ Usa una API FastAPI, una pantalla Streamlit y SQLite, con Poetry (`package-mode 
 - Revisar estilo: `poetry run ruff check .`
 - Instalar el hook de Git: `poetry run pre-commit install`
 - Ejecutar los hooks en todos los archivos: `poetry run pre-commit run --all-files`
+- Crear la base de datos: `poetry run python scripts/crear_bd.py`
 
 ## Arquitectura
 - `app/`: API, interfaz y lógica del sistema.
@@ -19,6 +20,7 @@ Usa una API FastAPI, una pantalla Streamlit y SQLite, con Poetry (`package-mode 
 - `docs/adr/`: decisiones de arquitectura.
 
 ## Reglas
+- Ejecutar los scripts y comandos de Python del proyecto mediante `poetry run`.
 - Agregar dependencias únicamente con `poetry add`.
 - Agregar dependencias de desarrollo con `poetry add --group dev`.
 - Usar SQL parametrizado; nunca interpolar valores en consultas.
