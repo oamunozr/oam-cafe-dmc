@@ -53,3 +53,66 @@ def test_stock_insuficiente(cliente):
 def test_cantidad_maxima(cliente):
     r = cliente.post("/pedidos", json={"cliente_id": 1, "items": [{"producto_id": 1, "cantidad": 21}]})
     assert r.status_code == 422
+
+# --- Ejercicio 2.1: consultar un cliente ---------------------------------------
+def test_obtener_cliente(cliente):
+    r = cliente.get("/clientes/1")
+    assert r.status_code == 200
+    assert r.json() == {"id": 1, "nombre": "Ana Torres", "email": "ana@ejemplo.com"}
+
+
+def test_cliente_inexistente(cliente):
+    assert cliente.get("/clientes/99").status_code == 404
+
+
+# --- Ejercicio 2.3: cambio de estado del pedido --------------------------------
+# Datos de prueba: pedido 1 entregado, 2 pagado, 3 pendiente, 4 entregado.
+def test_estado_transicion_valida(cliente):
+    r = cliente.patch("/pedidos/3/estado", json={"estado": "pagado"})
+    assert r.status_code == 200
+    assert r.json()["estado"] == "pagado"
+    assert cliente.get("/pedidos/3").json()["estado"] == "pagado"
+    r = cliente.patch("/pedidos/3/estado", json={"estado": "entregado"})
+    assert r.status_code == 200
+
+
+def test_estado_transicion_invalida(cliente):
+    r = cliente.patch("/pedidos/1/estado", json={"estado": "pendiente"})
+    assert r.status_code == 409
+    assert cliente.get("/pedidos/1").json()["estado"] == "entregado"
+
+
+def test_estado_no_salta_pasos(cliente):
+    assert cliente.patch("/pedidos/3/estado", json={"estado": "entregado"}).status_code == 409
+
+
+def test_estado_pedido_inexistente(cliente):
+    assert cliente.patch("/pedidos/999/estado", json={"estado": "pagado"}).status_code == 404
+
+
+def test_estado_desconocido(cliente):
+    assert cliente.patch("/pedidos/3/estado", json={"estado": "en preparación"}).status_code == 422
+
+
+def test_anular_devuelve_stock(cliente):
+    # Pedido 3 (pendiente) contiene 1 Latte (id 4, stock inicial 80)
+    assert cliente.get("/productos/4").json()["stock"] == 80
+    r = cliente.patch("/pedidos/3/estado", json={"estado": "anulado"})
+    assert r.status_code == 200
+    assert cliente.get("/productos/4").json()["stock"] == 81
+    # Un pedido anulado ya no cambia de estado (y no devuelve el stock dos veces)
+    assert cliente.patch("/pedidos/3/estado", json={"estado": "anulado"}).status_code == 409
+    assert cliente.get("/productos/4").json()["stock"] == 81
+
+
+# --- Ejercicio 2.4: historial de pedidos de un cliente -------------------------
+def test_pedidos_de_cliente(cliente):
+    r = cliente.get("/clientes/1/pedidos")
+    assert r.status_code == 200
+    pedidos = r.json()
+    assert [p["id"] for p in pedidos] == [4, 1]  # más reciente primero
+    assert all(p["cliente_id"] == 1 for p in pedidos)
+
+
+def test_pedidos_de_cliente_inexistente(cliente):
+    assert cliente.get("/clientes/99/pedidos").status_code == 404

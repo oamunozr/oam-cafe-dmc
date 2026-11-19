@@ -1,10 +1,18 @@
-"""Contexto PEDIDOS: crea pedidos validando stock y calculando el total."""
+"""Contexto PEDIDOS: crea pedidos validando stock, calcula el total y controla su estado."""
 from fastapi import APIRouter, HTTPException
 
 from app.db import Conexion
-from app.modelos import Pedido, PedidoNuevo
+from app.modelos import CambioEstado, Pedido, PedidoNuevo
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
+
+# Transiciones de estado permitidas. Los estados finales no tienen salida.
+TRANSICIONES: dict[str, set[str]] = {
+    "pendiente": {"pagado", "anulado"},
+    "pagado": {"entregado", "anulado"},
+    "entregado": set(),
+    "anulado": set(),
+}
 
 
 @router.post("", response_model=Pedido, status_code=201)
@@ -51,3 +59,27 @@ def obtener_pedido(pedido_id: int, con: Conexion):
     if fila is None:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     return dict(fila)
+
+
+@router.patch("/{pedido_id}/estado", response_model=Pedido)
+def cambiar_estado(pedido_id: int, cambio: CambioEstado, con: Conexion):
+    fila = con.execute("SELECT id, cliente_id, estado, total FROM pedidos WHERE id = ?",
+                       (pedido_id,)).fetchone()
+    if fila is None:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    actual = fila["estado"]
+    if cambio.estado not in TRANSICIONES.get(actual, set()):
+        raise HTTPException(status_code=409,
+                            detail=f"No se puede pasar de {actual} a {cambio.estado}")
+    with con:  # transacción: el cambio de estado y la devolución de stock van juntos
+        cur = con.execute("UPDATE pedidos SET estado = ? WHERE id = ? AND estado = ?",
+                          (cambio.estado, pedido_id, actual))
+        if cur.rowcount == 0:  # otro proceso cambió el estado entre la lectura y la escritura
+            raise HTTPException(status_code=409, detail="El pedido cambió de estado; vuelve a intentarlo")
+        if cambio.estado == "anulado":
+            con.execute(
+                "UPDATE productos SET stock = stock + d.cantidad FROM ("
+                " SELECT producto_id, SUM(cantidad) AS cantidad FROM detalle_pedido"
+                " WHERE pedido_id = ? GROUP BY producto_id) AS d"
+                " WHERE productos.id = d.producto_id", (pedido_id,))
+    return {**dict(fila), "estado": cambio.estado}

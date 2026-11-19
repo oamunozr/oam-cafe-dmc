@@ -95,3 +95,34 @@ with pedido:
                 else:
                     detalle = contenido.get("detail") if isinstance(contenido, dict) else None
                     st.error(f"Error HTTP {r.status_code}: {detalle or 'respuesta inesperada de la API'}")
+
+st.divider()
+st.markdown("""<div class="section-label">Tu historial</div>
+<div class="section-title">Mis pedidos</div>
+<p class="section-copy">Consulta los pedidos que has hecho y su estado.</p>""", unsafe_allow_html=True)
+with st.form("historial"):
+    id_historial = st.number_input("ID de cliente", min_value=1, value=1, key="id_historial")
+    if st.form_submit_button("Ver mis pedidos"):
+        try:
+            r = httpx.get(f"{API}/clientes/{int(id_historial)}/pedidos", timeout=5)
+        except httpx.RequestError:
+            st.error(f"No se pudo conectar con la API en {API} para consultar el historial.")
+        else:
+            try:
+                historial = r.json()
+            except ValueError:
+                historial = None
+            if r.status_code == 404:
+                st.warning(f"No existe un cliente con ID {int(id_historial)}.")
+            elif r.status_code != 200:
+                st.error(f"Error HTTP {r.status_code} al consultar el historial.")
+            elif not isinstance(historial, list) or any(
+                not isinstance(p, dict) or not {"id", "estado", "total"} <= p.keys() for p in historial
+            ):
+                st.error("La API devolvió el historial con un formato inesperado.")
+            elif not historial:
+                st.info("Este cliente todavía no tiene pedidos.")
+            else:
+                st.dataframe(
+                    [{"Pedido": p["id"], "Estado": p["estado"], "Total (S/)": p["total"]} for p in historial],
+                    width="stretch", hide_index=True)
