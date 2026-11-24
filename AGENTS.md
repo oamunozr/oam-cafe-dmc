@@ -29,3 +29,8 @@ Usa una API FastAPI, una pantalla Streamlit y SQLite, con Poetry (`package-mode 
 - Mantener `package-mode = false`.
 - No documentar comandos de ejecución que todavía no existan.
 - Mantener instalado el hook de pre-commit y corregir los errores de Ruff antes de crear un commit; no omitir el hook.
+
+## Herramientas MCP
+- cafe-archivos: lee archivos del proyecto (solo lectura, sin .env/.git/data).
+- Probar sin agente: `poetry run python scripts/probar_mcp.py mcp_servers/fs_server.py`
+- Regenerar configuración: `poetry run python scripts/configurar_mcp.py`
